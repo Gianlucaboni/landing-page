@@ -29,15 +29,6 @@ jobs:
 
       - uses: google-github-actions/setup-gcloud@v2
 
-      - name: Create Artifact Registry repo (if not exists)
-        run: |
-          gcloud artifacts repositories describe $AR_REPO \
-            --location=$REGION --project=$PROJECT_ID 2>/dev/null || \
-          gcloud artifacts repositories create $AR_REPO \
-            --repository-format=docker \
-            --location=$REGION \
-            --project=$PROJECT_ID
-
       - name: Build and push image
         run: |
           IMAGE="$REGION-docker.pkg.dev/$PROJECT_ID/$AR_REPO/$SERVICE_NAME:$GITHUB_SHA"
