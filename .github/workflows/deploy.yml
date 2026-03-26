@@ -45,6 +45,7 @@ jobs:
             --project=$PROJECT_ID \
             --platform=managed \
             --allow-unauthenticated \
+            --service-account=${{ vars.RUNTIME_SA_EMAIL }} \
             --port=8080 \
             --memory=128Mi \
             --cpu=1 \
