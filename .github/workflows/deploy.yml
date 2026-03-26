@@ -1,0 +1,61 @@
+name: Deploy to Cloud Run
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  REGION: europe-west1
+  SERVICE_NAME: landing-page
+  AR_REPO: cloud-seed-images
+
+permissions:
+  contents: read
+  id-token: write   # Required for WIF OIDC token
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.DEPLOY_SA_EMAIL }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Create Artifact Registry repo (if not exists)
+        run: |
+          gcloud artifacts repositories describe $AR_REPO \
+            --location=$REGION --project=$PROJECT_ID 2>/dev/null || \
+          gcloud artifacts repositories create $AR_REPO \
+            --repository-format=docker \
+            --location=$REGION \
+            --project=$PROJECT_ID
+
+      - name: Build and push image
+        run: |
+          IMAGE="$REGION-docker.pkg.dev/$PROJECT_ID/$AR_REPO/$SERVICE_NAME:$GITHUB_SHA"
+          gcloud auth configure-docker $REGION-docker.pkg.dev --quiet
+          docker build -t $IMAGE .
+          docker push $IMAGE
+
+      - name: Deploy to Cloud Run
+        run: |
+          IMAGE="$REGION-docker.pkg.dev/$PROJECT_ID/$AR_REPO/$SERVICE_NAME:$GITHUB_SHA"
+          gcloud run deploy $SERVICE_NAME \
+            --image=$IMAGE \
+            --region=$REGION \
+            --project=$PROJECT_ID \
+            --platform=managed \
+            --allow-unauthenticated \
+            --port=8080 \
+            --memory=128Mi \
+            --cpu=1 \
+            --min-instances=0 \
+            --max-instances=2
